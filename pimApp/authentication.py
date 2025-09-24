@@ -14,20 +14,63 @@ SIMPLE_JWT=os.getenv('SIMPLE_JWT')
 @api_view(('GET', 'POST'))
 @csrf_exempt
 def loginUser(request):
+    # Debug and fix SIMPLE_JWT issue
+    global SIMPLE_JWT
+    print(f"SIMPLE_JWT type: {type(SIMPLE_JWT)}")
+    print(f"SIMPLE_JWT value: {repr(SIMPLE_JWT)}")
+    
+    # Fix SIMPLE_JWT if it's a string
+    if isinstance(SIMPLE_JWT, str):
+        try:
+            import json
+            SIMPLE_JWT = json.loads(SIMPLE_JWT)
+            print("Successfully converted SIMPLE_JWT from string to dict")
+        except json.JSONDecodeError as e:
+            print(f"Failed to parse SIMPLE_JWT: {e}")
+            # Use hardcoded values as fallback
+            SIMPLE_JWT = {
+                'SESSION_COOKIE_MAX_AGE': 86400,
+                'AUTH_COOKIE_SECURE': False,
+                'AUTH_COOKIE_SAMESITE': 'Lax',
+                'SESSION_COOKIE_DOMAIN': None,
+                'ACCESS_TOKEN_LIFETIME': 86400,
+                'SIGNING_KEY': 'fallback-secret-key',
+                'ALGORITHM': 'HS256'
+            }
+    
     jsonRequest = JSONParser().parse(request)
-    user_data_obj = DatabaseModel.get_document(user.objects, jsonRequest)
+    print(f"Login request: {jsonRequest}")
+    
+    # Transform the request to match your database fields
+    query = {
+        "name": jsonRequest.get("user_name"),
+        "password": jsonRequest.get("password")
+    }
+    
+    print(f"Database query: {query}")
+    user_data_obj = DatabaseModel.get_document(user.objects, query)
+    print(f"User found: {user_data_obj}")
+    
     token = ''
     if user_data_obj == None:
         response = createJsonResponse(request)
         valid = False
     else:
         role_name = user_data_obj.role
+        
+        # Handle client_id safely
+        client_id = ""
         if user_data_obj.role == 'superadmin':
-            # _thread_locals.login_client_id = str("super-admin")
             client_id = ""
         else:
-            # _thread_locals.login_client_id = str(user_data_obj.client_id.id)
-            client_id = str(user_data_obj.client_id.id)
+            try:
+                if hasattr(user_data_obj, 'client_id') and user_data_obj.client_id:
+                    client_id = str(user_data_obj.client_id.id)
+                else:
+                    client_id = ""
+            except (AttributeError, TypeError):
+                client_id = ""
+        
         payload = {
             'id': str(user_data_obj.id),
             'first_name': user_data_obj.name,
@@ -35,11 +78,10 @@ def loginUser(request):
             'role_name': role_name.lower().replace(' ', '_'),
             'max_age': SIMPLE_JWT['SESSION_COOKIE_MAX_AGE']
         }
+        
         token = jwt.encode(payload=payload, key=SIMPLE_JWT['SIGNING_KEY'], algorithm=SIMPLE_JWT['ALGORITHM'])
-        # token = token.decode('utf-8')
         valid = True
         user_data_obj.is_active = True
-        # user_data_obj.save()
         response = createJsonResponse(request, token)
         createCookies(token, response)
         response.data['data']['user_login_id'] = str(user_data_obj.id)
@@ -47,6 +89,7 @@ def loginUser(request):
         response.data['data']['name'] = str(user_data_obj.name)
         response.data['data']['client_id'] = str(client_id)
         csrf.get_token(request)
+    
     response.data['data']['valid'] = valid
     return response
 
