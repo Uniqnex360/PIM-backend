@@ -9,3 +9,5 @@ services:
       - .:/app
     environment:
       - DEBUG=1
+    env_file:
+      - ./PIM/.env
