@@ -5,7 +5,7 @@ from mongoengine.queryset import QuerySet   # type: ignore
 
 
 class DatabaseModel:
-    redis_client = redis.StrictRedis(host='localhost', port=6379, db=0, decode_responses=False)
+    redis_client = redis.StrictRedis(host='localhost', port=6379, db=0, decode_responses=False,password="foobaredUniqnex")
     @staticmethod
     def get_document(queryset, filter={}, field_list=[]):
         try:
