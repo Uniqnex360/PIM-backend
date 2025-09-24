@@ -140,6 +140,7 @@ CORS_ALLOW_ALL_ORIGINS = True
 
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
+    "https://pim-frontend-five.vercel.app"
 ]
 
 
@@ -147,6 +148,7 @@ CORS_ALLOW_CREDENTIALS = True
 
 CSRF_TRUSTED_ORIGINS = [
     "http://localhost:3000",
+    "https://pim-frontend-five.vercel.app"
 ]
 
 # Database
