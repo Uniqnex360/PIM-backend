@@ -1,0 +1,24 @@
+# Ignore Python bytecode files
+__pycache__/
+pimApp/__pycache__/
+*.pyc
+*.pyo
+
+# Ignore virtual environment
+venv/
+
+# Ignore the env.py file in plmp_backend
+PIM/env.py
+
+# Ignore specific Python scripts or data files
+pimApp/data_py.py
+
+# Ignore JSON files
+*.json
+
+# Ignore upload and media directories
+uploads/
+media/
+.env
+# Ignore environment configuration files
+PIM/env
