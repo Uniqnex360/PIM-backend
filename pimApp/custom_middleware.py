@@ -36,7 +36,7 @@ def skip_for_paths():
                     if user_login_obj.role != 'superadmin':
                         _thread_locals.client_id = str(user_login_obj.client_id.id)
                 else:
-                    if str(request.path) != '/loginUser/':
+                    if str(request.path) != '/api/loginUser/':
                        return f(self, request) 
                 return self.get_response(request)  
             return f(self, request) 
