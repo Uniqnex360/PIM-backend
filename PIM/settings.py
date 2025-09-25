@@ -79,7 +79,6 @@ logging.config.dictConfig(LOGGING)
 # MongoDB Connection with Logging
 from mongoengine import connect, get_connection
 from pymongo.errors import ConnectionFailure, ServerSelectionTimeoutError
-from mongoengine.exceptions import ConnectionError as MongoEngineConnectionError
 
 logger = logging.getLogger(__name__)  # Logs under the current module (settings)
 
@@ -118,7 +117,7 @@ try:
     # from pimApp.models import user  # Import your user model
     # logger.info(f"   - Test query: Found {len(list(user.objects.limit(1)))} documents in 'user' collection")
     
-except (ConnectionFailure, ServerSelectionTimeoutError, MongoEngineConnectionError) as e:
+except (ConnectionFailure, ServerSelectionTimeoutError) as e:
     logger.error(f"❌ MongoDB connection failed: {e}")
     logger.error(f"   - Host: {host}, DB: {db_name}")
     raise  # Re-raise to prevent app startup with bad DB
