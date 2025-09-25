@@ -37,32 +37,18 @@ def loginUser(request):
     print(f"SIMPLE_JWT type: {type(SIMPLE_JWT)}")
     print(f"SIMPLE_JWT value: {repr(SIMPLE_JWT)}")
     
-    # Fix SIMPLE_JWT if it's a string
-    if isinstance(SIMPLE_JWT, str):
-        try:
-            import json
-            SIMPLE_JWT = json.loads(SIMPLE_JWT)
-            print("Successfully converted SIMPLE_JWT from string to dict")
-        except json.JSONDecodeError as e:
-            print(f"Failed to parse SIMPLE_JWT: {e}")
-            # Use hardcoded values as fallback
-            SIMPLE_JWT = {
-                'SESSION_COOKIE_MAX_AGE': 86400,
-                'AUTH_COOKIE_SECURE': False,
-                'AUTH_COOKIE_SAMESITE': 'Lax',
-                'SESSION_COOKIE_DOMAIN': None,
-                'ACCESS_TOKEN_LIFETIME': 86400,
-                'SIGNING_KEY': 'fallback-secret-key',
-                'ALGORITHM': 'HS256'
-            }
-    
     jsonRequest = JSONParser().parse(request)
     print(f"Login request: {jsonRequest}")
-    
+    user_name_or_email=jsonRequest.get('user_name')
+    password=jsonRequest.get('password')
     # Transform the request to match your database fields
     query = {
-        "name": jsonRequest.get("user_name"),
-        "password": jsonRequest.get("password")
+        "$or":[
+            {"name":user_name_or_email},
+            {"email":user_name_or_email}
+            
+        ],
+        'password':password
     }
     
     print(f"Database query: {query}")
