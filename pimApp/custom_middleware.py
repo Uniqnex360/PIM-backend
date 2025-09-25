@@ -165,7 +165,6 @@ class CustomMiddleware:
 
     @skip_for_paths()
     def __call__(self, request):
-        print("=" * 50)
         # Skip middleware for login and root
         if request.path in ["/api/loginUser/", "/"]:
             return self.get_response(request)
@@ -175,8 +174,6 @@ class CustomMiddleware:
 
         try:
             user_login_id = request.META.get("HTTP_USER_LOGIN_ID")
-            print(f"DEBUG - Received user_login_id: '{user_login_id}'")
-            print(f"DEBUG - user_login_id type: {type(user_login_id)}")
             _thread_locals.user_login_id = user_login_id
 
             # Attempt to load the user

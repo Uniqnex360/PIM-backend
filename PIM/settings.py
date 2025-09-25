@@ -21,54 +21,147 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/4.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-)1p(h4i8wd0jham0iwr2o0c_^z8sj&2f+w&7gzj8jf&ug3j1&k'
+SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure-)1p(h4i8wd0jham0iwr2o0c_^z8sj&2f+w&7gzj8jf&ug3j1&k')  # Use env var in prod
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = os.getenv('DEBUG', 'True').lower() == 'true'  # Set via env var
 
-ALLOWED_HOSTS = ['*']
+ALLOWED_HOSTS = ['*']  # Use specific hosts in prod, e.g., ['pim-backend-rlia.onrender.com']
 
-from mongoengine import connect
-connect(
-    db=os.getenv("MONGODB_COURSE_DB_NAME"),
-    host=os.getenv("MONGODB_HOST_1")
-)
+# Logging Configuration (enables MongoDB and custom logs)
+import logging
+import logging.config
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {
+            'format': '{levelname} {asctime} {module} {process:d} {thread:d} {message}',
+            'style': '{',
+        },
+    },
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+            'formatter': 'verbose',
+            'level': 'INFO',  # Set to 'DEBUG' for more details locally
+        },
+    },
+    'loggers': {
+        'mongoengine': {  # MongoEngine logs
+            'handlers': ['console'],
+            'level': 'INFO',
+            'propagate': True,
+        },
+        'pymongo': {  # PyMongo connection logs
+            'handlers': ['console'],
+            'level': 'INFO',
+            'propagate': True,
+        },
+        'pymongo.server_selection': {  # Server discovery logs
+            'handlers': ['console'],
+            'level': 'INFO',
+            'propagate': True,
+        },
+        '__main__': {  # Custom logs (e.g., connection success)
+            'handlers': ['console'],
+            'level': 'INFO',
+            'propagate': True,
+        },
+    },
+    'root': {
+        'handlers': ['console'],
+        'level': 'WARNING',
+    },
+}
+logging.config.dictConfig(LOGGING)
 
-ALLOWED_HOSTS = ["*"]
+# MongoDB Connection with Logging
+from mongoengine import connect, get_connection
+from pymongo.errors import ConnectionFailure, ServerSelectionTimeoutError
+from mongoengine.exceptions import ConnectionError as MongoEngineConnectionError
 
+logger = logging.getLogger(__name__)  # Logs under the current module (settings)
+
+try:
+    db_name = os.getenv("MONGODB_COURSE_DB_NAME")
+    host = os.getenv("MONGODB_HOST_1")
+    
+    if not db_name or not host:
+        raise ValueError("Missing env vars: MONGODB_COURSE_DB_NAME or MONGODB_HOST_1")
+    
+    logger.info(f"Attempting MongoDB connection to host: {host}, db: {db_name}")
+    
+    # Connect (add auth if needed; see notes below)
+    connection = connect(
+        db=db_name,
+        host=host,
+        # Optional: Add these for better prod reliability
+        # serverSelectionTimeoutMS=10000,  # 10s timeout for server selection
+        # connectTimeoutMS=10000,          # 10s connection timeout
+        # username=os.getenv('MONGO_USER'), # If auth required
+        # password=os.getenv('MONGO_PASS'), # If auth required
+        # authentication_source='admin',    # For Atlas/auth DB
+    )
+    
+    # Success: Log details
+    conn_alias = connection.name  # Usually 'default'
+    conn_obj = get_connection(conn_alias)
+    logger.info(f"✅ MongoDB connected successfully!")
+    logger.info(f"   - Alias: {conn_alias}")
+    logger.info(f"   - Host: {conn_obj.host}")
+    logger.info(f"   - Port: {conn_obj.port}")
+    logger.info(f"   - DB: {db_name}")
+    logger.info(f"   - Max pool size: {conn_obj.max_pool_size}")
+    
+    # Optional: Light test query to verify access (uncomment if needed)
+    # from pimApp.models import user  # Import your user model
+    # logger.info(f"   - Test query: Found {len(list(user.objects.limit(1)))} documents in 'user' collection")
+    
+except (ConnectionFailure, ServerSelectionTimeoutError, MongoEngineConnectionError) as e:
+    logger.error(f"❌ MongoDB connection failed: {e}")
+    logger.error(f"   - Host: {host}, DB: {db_name}")
+    raise  # Re-raise to prevent app startup with bad DB
+except ValueError as e:
+    logger.error(f"❌ MongoDB env var error: {e}")
+    raise
+except Exception as e:
+    logger.error(f"❌ Unexpected MongoDB connection error: {e}")
+    raise
+
+# CORS and CSRF Settings
 CORS_ALLOW_CREDENTIALS = True
-# CSRF_COOKIE_SECURE = True
+CSRF_COOKIE_SECURE = os.getenv('CSRF_COOKIE_SECURE', 'False').lower() == 'true'  # False for local HTTP
+SESSION_COOKIE_SECURE = os.getenv('SESSION_COOKIE_SECURE', 'False').lower() == 'true'  # False for local HTTP
 
-# settings.py
 CORS_ALLOW_HEADERS = [
     'user-login-id',
     'content-type',
 ]
-# CORS_ALLOW_HEADERS = ["*"]  
+
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-EMAIL_HOST =  'smtp.gmail.com'
+EMAIL_HOST = 'smtp.gmail.com'
 EMAIL_PORT = 587
 EMAIL_USE_TLS = True
-EMAIL_HOST_USER = 'selva@kmdigicommerce.com'
-EMAIL_HOST_PASSWORD = 'ugrb gilv mqye nmam '
+EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', 'selva@kmdigicommerce.com')
+EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', 'ugrb gilv mqye nmam')  # Use app password; move to env
+
 SESSION_ENGINE = "django.contrib.sessions.backends.cache"
 SESSION_CACHE_ALIAS = "default"
 REDIS_URL = os.getenv('REDIS_URL')
 if REDIS_URL:
     CACHES = {
-    'default': {
-        'BACKEND': 'django_redis.cache.RedisCache',
-        'LOCATION': REDIS_URL,
-        'OPTIONS': {
-            'CLIENT_CLASS': 'django_redis.client.DefaultClient',
-            'CONNECTION_POOL_KWARGS': {
+        'default': {
+            'BACKEND': 'django_redis.cache.RedisCache',
+            'LOCATION': REDIS_URL,
+            'OPTIONS': {
+                'CLIENT_CLASS': 'django_redis.client.DefaultClient',
+                'CONNECTION_POOL_KWARGS': {
                     'ssl_cert_reqs': None,  # For Upstash SSL
                 },
+            }
         }
     }
-}
-SESSION_COOKIE_SECURE = True  # Set to True in production if using HTTPS
-CSRF_COOKIE_SECURE = True  # Set to True in production if using HTTPS
 CSRF_COOKIE_SAMESITE = 'None'
 SESSION_COOKIE_SAMESITE = "None"
 
@@ -82,31 +175,25 @@ INSTALLED_APPS = [
     'pimApp',
     'rest_framework',
     'cloudinary',
-    'cloudinary_storage'
+    'cloudinary_storage',
+    'corsheaders',  # Required for CORS settings
 ]
 
+# Cloudinary Config (move to env vars for prod)
 import cloudinary
-
 cloudinary.config( 
-    cloud_name = "km-digi", 
-    api_key = "987363492229394", 
-    api_secret = "FbzaPNcYulOZgBdgX3LFAggCSv4"
+    cloud_name=os.getenv('CLOUDINARY_CLOUD_NAME', 'km-digi'), 
+    api_key=os.getenv('CLOUDINARY_API_KEY', '987363492229394'), 
+    api_secret=os.getenv('CLOUDINARY_API_SECRET', 'FbzaPNcYulOZgBdgX3LFAggCSv4'),
 )
-# cloudinary.config( 
-#     cloud_name = "dpms5mlyv", 
-#     api_key = "299797859158712", 
-#     api_secret = "0UTgDLdfgRlwZs-Si1L8EnOR_J8"
-# )
 
-SHOPIFY_STORE = os.getenv("SHOPIFY_STORE"),
-SHOPIFY_ACCESS_TOKEN = os.getenv("SHOPIFY_ACCESS_TOKEN") ,
-SHOPIFY_GRAPHQL_URL = os.getenv("SHOPIFY_GRAPHQL_URL "),
-
+SHOPIFY_STORE = os.getenv("SHOPIFY_STORE")  # Removed trailing comma
+SHOPIFY_ACCESS_TOKEN = os.getenv("SHOPIFY_ACCESS_TOKEN")  # Removed trailing comma
+SHOPIFY_GRAPHQL_URL = os.getenv("SHOPIFY_GRAPHQL_URL")  # Removed trailing comma and space
 
 DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
-
-# Set media URL
 MEDIA_URL = 'https://res.cloudinary.com/km-digi/'
+
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
@@ -123,7 +210,7 @@ ROOT_URLCONF = 'PIM.urls'
 
 TEMPLATES = [
     {
-        'BACKEND': 'django.template.backends.django.DjangoTemplates',
+        'BACKEND': 'django.template.backends.django.DTemplates',
         'DIRS': [],
         'APP_DIRS': True,
         'OPTIONS': {
@@ -139,33 +226,17 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'PIM.wsgi.application'
 
-
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
     "https://pim-frontend-five.vercel.app"
 ]
-
-
 
 CSRF_TRUSTED_ORIGINS = [
     "http://localhost:3000",
     "https://pim-frontend-five.vercel.app"
 ]
 
-# Database
-# https://docs.djangoproject.com/en/4.2/ref/settings/#databases
-
-# DATABASES = {
-#     'default': {
-#         'ENGINE': 'django.db.backends.sqlite3',
-#         'NAME': BASE_DIR / 'db.sqlite3',
-#     }
-# }
-
-
 # Password validation
-# https://docs.djangoproject.com/en/4.2/ref/settings/#auth-password-validators
-
 AUTH_PASSWORD_VALIDATORS = [
     {
         'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',
@@ -181,27 +252,11 @@ AUTH_PASSWORD_VALIDATORS = [
     },
 ]
 
-
 # Internationalization
-# https://docs.djangoproject.com/en/4.2/topics/i18n/
-
 LANGUAGE_CODE = 'en-us'
-
 TIME_ZONE = 'UTC'
-
 USE_I18N = True
-
 USE_TZ = True
 
-
 # Static files (CSS, JavaScript, Images)
-# https://docs.djangoproject.com/en/4.2/howto/static-files/
-
 STATIC_URL = 'static/'
-
-# CSRF_COOKIE_SECURE = True
-# SESSION_COOKIE_SECURE = True
-
-# cloud = 987363492229394
-# SECRET_cloud = "FbzaPNcYulOZgBdgX3LFAggCSv4"
-# name = "dufy4rd3b"
