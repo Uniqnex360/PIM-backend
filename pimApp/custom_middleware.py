@@ -245,41 +245,41 @@ class CustomMiddleware:
         return response
 
 def createCookies(token, response):
+    # Fix SIMPLE_JWT if it's a string (same as in loginUser)
     global SIMPLE_JWT
     if isinstance(SIMPLE_JWT, str):
         try:
+            import json
             SIMPLE_JWT = json.loads(SIMPLE_JWT)
-        except json.JSONDecodeError:
+        except json.JSONDecodeError as e:
+            print(f"createCookies: Failed to parse SIMPLE_JWT: {e}")
+            # Use hardcoded values as fallback
             SIMPLE_JWT = {
                 'SESSION_COOKIE_MAX_AGE': 86400,
-                'AUTH_COOKIE_SECURE': True,         # ✅ force secure
-                'AUTH_COOKIE_SAMESITE': 'None',     # ✅ allow cross-site
+                'AUTH_COOKIE_SECURE': False,
+                'AUTH_COOKIE_SAMESITE': 'Lax',
                 'SESSION_COOKIE_DOMAIN': None,
                 'ACCESS_TOKEN_LIFETIME': 86400,
                 'SIGNING_KEY': 'fallback-secret-key',
                 'ALGORITHM': 'HS256'
             }
-
+    
     header, payload, signature = str(token).split(".")
-
-    # ✅ header+payload cookie (non-HttpOnly, for frontend use if needed)
     response.set_cookie(
         key="_c1",
-        value=f"{header}.{payload}",
+        value=header + "." + payload,
         max_age=SIMPLE_JWT['SESSION_COOKIE_MAX_AGE'],
-        secure=True,
+        secure=SIMPLE_JWT['AUTH_COOKIE_SECURE'],
         httponly=False,
-        samesite="None",
+        samesite=SIMPLE_JWT['AUTH_COOKIE_SAMESITE'],
         domain=SIMPLE_JWT['SESSION_COOKIE_DOMAIN'],
     )
-
-    # ✅ signature cookie (HttpOnly, secure)
     response.set_cookie(
         key="_c2",
         value=signature,
-        max_age=SIMPLE_JWT['ACCESS_TOKEN_LIFETIME'],  # ✅ use max_age not expires
-        secure=True,
+        expires=SIMPLE_JWT['ACCESS_TOKEN_LIFETIME'],
+        secure=SIMPLE_JWT['AUTH_COOKIE_SECURE'],
         httponly=True,
-        samesite="None",
+        samesite=SIMPLE_JWT['AUTH_COOKIE_SAMESITE'],
         domain=SIMPLE_JWT['SESSION_COOKIE_DOMAIN'],
     )

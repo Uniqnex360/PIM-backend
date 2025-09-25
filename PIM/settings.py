@@ -40,11 +40,11 @@ CORS_ALLOW_CREDENTIALS = True
 # CSRF_COOKIE_SECURE = True
 
 # settings.py
-# CORS_ALLOW_HEADERS = [
-#     'user-login-id',
-#     'content-type',
-# ]
-CORS_ALLOW_HEADERS = ["*"]  
+CORS_ALLOW_HEADERS = [
+    'user-login-id',
+    'content-type',
+]
+# CORS_ALLOW_HEADERS = ["*"]  
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST =  'smtp.gmail.com'
 EMAIL_PORT = 587
