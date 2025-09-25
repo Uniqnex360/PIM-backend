@@ -5,6 +5,7 @@ from .global_service import DatabaseModel
 from rest_framework.decorators import api_view
 from django.views.decorators.csrf import csrf_exempt
 from django.middleware import csrf
+from mongoengine.queryset.visitor import Q
 from .models import user
 import os
 from rest_framework.parsers import JSONParser
@@ -42,17 +43,11 @@ def loginUser(request):
     user_name_or_email=jsonRequest.get('user_name')
     password=jsonRequest.get('password')
     # Transform the request to match your database fields
-    query = {
-        "$or":[
-            {"name":user_name_or_email},
-            {"email":user_name_or_email}
-            
-        ],
-        'password':password
-    }
     
-    print(f"Database query: {query}")
-    user_data_obj = DatabaseModel.get_document(user.objects, query)
+    user_data_obj = user.objects(
+        (Q(name=user_name_or_email) | Q(email=user_name_or_email)) &
+        Q(password=password)
+    ).first()
     print(f"User found: {user_data_obj}")
     
     token = ''
