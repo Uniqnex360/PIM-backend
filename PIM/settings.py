@@ -40,10 +40,11 @@ CORS_ALLOW_CREDENTIALS = True
 # CSRF_COOKIE_SECURE = True
 
 # settings.py
-CORS_ALLOW_HEADERS = [
-    'user-login-id',
-    'content-type',
-]
+# CORS_ALLOW_HEADERS = [
+#     'user-login-id',
+#     'content-type',
+# ]
+CORS_ALLOW_HEADERS = ["*"]  
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST =  'smtp.gmail.com'
 EMAIL_PORT = 587
@@ -66,9 +67,10 @@ if REDIS_URL:
         }
     }
 }
-SESSION_COOKIE_SECURE = False  # Set to True in production if using HTTPS
-CSRF_COOKIE_SECURE = False  # Set to True in production if using HTTPS
+SESSION_COOKIE_SECURE = True  # Set to True in production if using HTTPS
+CSRF_COOKIE_SECURE = True  # Set to True in production if using HTTPS
 CSRF_COOKIE_SAMESITE = 'None'
+SESSION_COOKIE_SAMESITE = "None"
 
 INSTALLED_APPS = [
     'django.contrib.admin',
