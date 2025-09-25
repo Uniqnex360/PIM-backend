@@ -8,6 +8,24 @@ import jwt # type: ignore
 from rest_framework import status # type: ignore
 from rest_framework.renderers import JSONRenderer # type: ignore
 
+import json
+
+# Parse SIMPLE_JWT string from env into Python dict
+if isinstance(SIMPLE_JWT, str):
+    try:
+        SIMPLE_JWT = json.loads(SIMPLE_JWT)
+    except json.JSONDecodeError as e:
+        print(f"Failed to parse SIMPLE_JWT env var: {e}")
+        # Fallbacks - so you never crash, even if env is not set properly
+        SIMPLE_JWT = {
+            'SESSION_COOKIE_MAX_AGE': 86400,
+            'AUTH_COOKIE_SECURE': False,
+            'AUTH_COOKIE_SAMESITE': 'Lax',
+            'SESSION_COOKIE_DOMAIN': None,
+            'ACCESS_TOKEN_LIFETIME': 86400,
+            'SIGNING_KEY': 'fallback-secret-key',
+            'ALGORITHM': 'HS256'
+        }
 
 def check_ignore_authentication_for_url(request):
     path = request.path.split("/")
@@ -85,6 +103,7 @@ def check_authentication(request):
     if(c1 and c2):    token = c1+"."+c2
     validationObjJWT = None
     try:
+        
         validationObjJWT = jwt.decode(token, SIMPLE_JWT['SIGNING_KEY'], algorithms=[SIMPLE_JWT['ALGORITHM']])
         return validationObjJWT
     except Exception as e:

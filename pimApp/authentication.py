@@ -11,6 +11,24 @@ from rest_framework.parsers import JSONParser
 import jwt
 from rest_framework.decorators import api_view
 SIMPLE_JWT=os.getenv('SIMPLE_JWT')
+import json
+
+# Parse SIMPLE_JWT string from env into Python dict
+if isinstance(SIMPLE_JWT, str):
+    try:
+        SIMPLE_JWT = json.loads(SIMPLE_JWT)
+    except json.JSONDecodeError as e:
+        print(f"Failed to parse SIMPLE_JWT env var: {e}")
+        # Fallbacks - so you never crash, even if env is not set properly
+        SIMPLE_JWT = {
+            'SESSION_COOKIE_MAX_AGE': 86400,
+            'AUTH_COOKIE_SECURE': False,
+            'AUTH_COOKIE_SAMESITE': 'Lax',
+            'SESSION_COOKIE_DOMAIN': None,
+            'ACCESS_TOKEN_LIFETIME': 86400,
+            'SIGNING_KEY': 'fallback-secret-key',
+            'ALGORITHM': 'HS256'
+        }
 @api_view(('GET', 'POST'))
 @csrf_exempt
 def loginUser(request):
