@@ -55,13 +55,17 @@ EMAIL_HOST_USER = 'selva@kmdigicommerce.com'
 EMAIL_HOST_PASSWORD = 'ugrb gilv mqye nmam '
 SESSION_ENGINE = "django.contrib.sessions.backends.cache"
 SESSION_CACHE_ALIAS = "default"
-
-CACHES = {
+REDIS_URL = os.getenv('REDIS_URL')
+if REDIS_URL:
+    CACHES = {
     'default': {
         'BACKEND': 'django_redis.cache.RedisCache',
-        'LOCATION': 'redis://:foobaredUniqnex@127.0.0.1:6379/1',
+        'LOCATION': REDIS_URL,
         'OPTIONS': {
             'CLIENT_CLASS': 'django_redis.client.DefaultClient',
+            'CONNECTION_POOL_KWARGS': {
+                    'ssl_cert_reqs': None,  # For Upstash SSL
+                },
         }
     }
 }
