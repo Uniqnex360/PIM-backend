@@ -155,6 +155,8 @@ class CustomMiddleware:
         self.get_response = get_response
     @skip_for_paths()
     def __call__(self, request):
+        if request.path in ["/api/loginUser/", "/"]:
+            return self.response(request)
         response = createJsonResponse(request)
         try:
             user_login_id = request.META.get('HTTP_USER_LOGIN_ID')
