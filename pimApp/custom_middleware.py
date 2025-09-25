@@ -53,7 +53,7 @@ def skip_for_paths():
                 print(request.META.keys())
                 _thread_locals.user_login_id = user_login_id
                 print(">>>>>>>>>>>>>>>>>>>>")
-                user_login_obj = DatabaseModel.get_document(user.objects,{'_id':ObjectId(user_login_id)})
+                user_login_obj = DatabaseModel.get_document(user.objects,{'id':ObjectId(user_login_id)})
                 print('user',user_login_id)
                 if user_login_obj :
                     print(user_login_obj,id)
