@@ -5526,6 +5526,7 @@ def obtainChannelwiseTaxonomy(request):
 
 import logging
 logger = logging.getLogger(__name__) 
+@api_view(["GET"])
 def obtainDashboard(request):
     client_id = get_current_client()
     data = {
@@ -5683,8 +5684,8 @@ def obtainDashboard(request):
     parent_category_list = list(category_config.objects.aggregate(pipeline))
     data["parent_category_list"] = parent_category_list
     print(">>>>4")
-
-    return JsonResponse(data, safe=False)
+    print('response',data)
+    return Response(data, status=200)
 
 
 
@@ -5692,7 +5693,7 @@ def obtainVendorLog(request):
 
     client_id = get_current_client()
     pipeline = [
-        {"$match":{'client_id':ObjectId(client_id)}},{
+         {"$match":{'client_id':ObjectId(client_id)}},{
         '$lookup': {
             'from': 'user',
             'localField': 'user_id',

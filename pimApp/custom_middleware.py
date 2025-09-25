@@ -3,7 +3,9 @@ from django.http import JsonResponse # type: ignore
 from .global_service import DatabaseModel
 from .models import ignore_calls,capability,user
 import os
+from bson import ObjectId
 SIMPLE_JWT=os.getenv('SIMPLE_JWT')
+from django.http.response import HttpResponseBase
 import jwt # type: ignore
 from rest_framework import status # type: ignore
 from rest_framework.renderers import JSONRenderer # type: ignore
@@ -43,12 +45,16 @@ def skip_for_paths():
     def decorator(f):       
         def check_if_health(self, request):
             print(">>>>>>>>>>>>>>>>>>>>")
+            # print(request.__dict__)
+
 
             if check_ignore_authentication_for_url(request): 
                 user_login_id = request.META.get('HTTP_USER_LOGIN_ID')
+                print(request.META.keys())
                 _thread_locals.user_login_id = user_login_id
                 print(">>>>>>>>>>>>>>>>>>>>")
-                user_login_obj = DatabaseModel.get_document(user.objects,{'id':user_login_id})
+                user_login_obj = DatabaseModel.get_document(user.objects,{'_id':ObjectId(user_login_id)})
+                print('user',user_login_id)
                 if user_login_obj :
                     print(user_login_obj,id)
                     if user_login_obj.role != 'superadmin':
@@ -69,30 +75,33 @@ def createJsonResponse1(message='success', status=True, data=None):
             'status': status
     }
     return JsonResponse(response_data, content_type='application/json', status=200)
-def createJsonResponse(request, token = None):
+def createJsonResponse(request, token=None):
     c1 = ''
+
+    # Handle token splitting
     if token:
-        header,payload1,signature = str(token).split(".")
-        c1 = header+'.'+payload1
+        header, payload1, signature = str(token).split(".")
+        c1 = header + '.' + payload1
     else:
-        data_map = dict()
-        data_map['data'] = dict()
-        response = Response(content_type = 'application/json') 
-        response.data = data_map
-        response.data['emessage'] = 'success'
-        response.data['estatus'] = True
-        # response.data['_c1'] = c1
-        response.status_code = 200
-        return response
-        c1=request.COOKIES.get('_c1')
-    data_map = dict()
-    data_map['data'] = dict()
-    response = Response(content_type = 'application/json') 
-    response.data = data_map
-    response.data['emessage'] = 'success'
-    response.data['estatus'] = True
-    response.data['_c1'] = c1
-    response.status_code = 200
+        c1 = request.COOKIES.get('_c1', '')
+
+    # Build the response payload
+    data_map = {
+        'data': {},
+        'emessage': 'success',
+        'estatus': True
+    }
+    if c1:
+        data_map['_c1'] = c1
+
+    # ✅ Pass data to Response at creation time
+    response = Response(data_map, status=200, content_type='application/json')
+
+    # ✅ Force renderer context (since middleware created this, not DRF view)
+    response.accepted_renderer = JSONRenderer()
+    response.accepted_media_type = "application/json"
+    response.renderer_context = {}
+
     return response
 
 
@@ -153,63 +162,87 @@ def get_current_client():
 class CustomMiddleware:
     def __init__(self, get_response):
         self.get_response = get_response
+
     @skip_for_paths()
     def __call__(self, request):
+        # Skip middleware for login and root
         if request.path in ["/api/loginUser/", "/"]:
             return self.get_response(request)
+
+        # Start with a DRF-style wrapper
         response = createJsonResponse(request)
+
         try:
-            user_login_id = request.META.get('HTTP_USER_LOGIN_ID')
+            user_login_id = request.META.get("HTTP_USER_LOGIN_ID")
             _thread_locals.user_login_id = user_login_id
-            user_login_obj = DatabaseModel.get_document(user.objects,{'id':user_login_id})
-            if user_login_obj != None:
-                role = user_login_obj.role
-                if user_login_obj.role == 'superadmin':
-                    # _thread_locals.login_client_id = str("super-admin")
-                    client_id = ""
-                else:
-                    # _thread_locals.login_client_id = str(user_data_obj.client_id.id)
+
+            # Attempt to load the user
+            user_login_obj = DatabaseModel.get_document(
+                user.objects, {"id": ObjectId(user_login_id)}
+            )
+            print(f"user_login_obj = {user_login_obj}")
+
+            if user_login_obj is not None:
+                role = user_login_obj.role or ""
+
+                # Manage client_id
+                client_id = ""
+                if role != "superadmin" and getattr(user_login_obj, "client_id", None):
                     client_id = str(user_login_obj.client_id.id)
                 _thread_locals.client_id = client_id
-                print(role)
-                # refresh_cookies(request, response)
+
+                # Check capability
                 if check_role_and_capability(request, role):
                     res = self.get_response(request)
+
                     if isinstance(res, Response):
-                        response.data['data'] = res.data
-                        if isinstance(res.data, dict):
-                            if res.data.get('STATUS_CODE') == 401:
-                                response.status_code = status.HTTP_401_UNAUTHORIZED
+                        # ✅ DRF Response, merge cleaned data
+                        response.data["data"] = res.data
+                        if isinstance(res.data, dict) and res.data.get("STATUS_CODE") == 401:
+                            response.status_code = status.HTTP_401_UNAUTHORIZED
+                        # Finish the DRF response wrapper
+                        response.accepted_renderer = JSONRenderer()
+                        response.accepted_media_type = "application/json"
+                        response.renderer_context = {}
+                        response.render()
+                        return response
+
+                    elif isinstance(res, HttpResponseBase):
+                        # ✅ Regular Django HttpResponse (JsonResponse, error page, etc.)
+                        return res
+
                     else:
-                        response.data['data'] = res
-                        if isinstance(res, dict):
-                            if res.get('STATUS_CODE') == 401:
-                                response.status_code = status.HTTP_401_UNAUTHORIZED
+                        # ✅ Plain Python dict or data returned
+                        response.data["data"] = res
+                        if isinstance(res, dict) and res.get("STATUS_CODE") == 401:
+                            response.status_code = status.HTTP_401_UNAUTHORIZED
+                        response.accepted_renderer = JSONRenderer()
+                        response.accepted_media_type = "application/json"
+                        response.renderer_context = {}
+                        response.render()
+                        return response
                 else:
                     response.status_code = status.HTTP_401_UNAUTHORIZED
             else:
                 response.status_code = status.HTTP_401_UNAUTHORIZED
-                response.data['message'] = 'Invalid token'
+                response.data["message"] = "Invalid token"
+
         except Exception as e:
-            print("Exception Class --", e.__class__)
-            print("Exception Class name --", e.__class__.__name__)
-            print("Exception --")
-            print(e)
-            response.data['data'] = False
-            if (e.__class__.__name__ == 'ExpiredSignatureError' or e.__class__.__name__ == 'DecodeError'):
+            print("Middleware Exception:", e)
+            response.data["data"] = False
+            if e.__class__.__name__ in ["ExpiredSignatureError", "DecodeError"]:
                 response.status_code = status.HTTP_401_UNAUTHORIZED
-                response.data['message'] = 'Invalid token'
-            elif e.__class__.__name__ == 'ValidationError':
-                print(str(e))
-                print(e.message)
+                response.data["message"] = "Invalid token"
             else:
                 response.status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
-        response.accepted_renderer = JSONRenderer()
-        response.accepted_media_type = "application/json"
-        response.renderer_context = {}
-        response.render()
-        return response
 
+        # ✅ Default: render & return DRF Response
+        if isinstance(response, Response):
+            response.accepted_renderer = JSONRenderer()
+            response.accepted_media_type = "application/json"
+            response.renderer_context = {}
+            response.render()
+        return response
 
 def createCookies(token, response):
     # Fix SIMPLE_JWT if it's a string (same as in loginUser)
