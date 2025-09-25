@@ -165,102 +165,87 @@ class CustomMiddleware:
 
     @skip_for_paths()
     def __call__(self, request):
+        print("=" * 50)
         # Skip middleware for login and root
         if request.path in ["/api/loginUser/", "/"]:
             return self.get_response(request)
 
+        # Start with a DRF-style wrapper
         response = createJsonResponse(request)
 
         try:
-            # ---- Extract JWT from Authorization header or cookies ----
-            token = None
-            auth_header = request.META.get('HTTP_AUTHORIZATION', '')
-            if auth_header.startswith('Bearer '):
-                token = auth_header.split(' ')[1]
-            else:
-                c1 = request.COOKIES.get('_c1', '')
-                c2 = request.COOKIES.get('_c2', '')
-                if c1 and c2:
-                    token = f"{c1}.{c2}"
-
-            validationObjJWT = None
-            if token:
-                try:
-                    validationObjJWT = jwt.decode(
-                        token,
-                        SIMPLE_JWT['SIGNING_KEY'],
-                        algorithms=[SIMPLE_JWT['ALGORITHM']]
-                    )
-                except Exception as e:
-                    print("JWT decode error:", e)
-
-            # ---- Set user_login_id from decoded JWT ----
-            user_login_id = None
-            if validationObjJWT:
-                user_login_id = validationObjJWT.get('id')
+            user_login_id = request.META.get("HTTP_USER_LOGIN_ID")
+            print(f"DEBUG - Received user_login_id: '{user_login_id}'")
+            print(f"DEBUG - user_login_id type: {type(user_login_id)}")
             _thread_locals.user_login_id = user_login_id
 
-            if not user_login_id:
-                response.status_code = status.HTTP_401_UNAUTHORIZED
-                response.data['message'] = "Invalid token"
-                response.render()
-                return response
+            # Attempt to load the user
+            user_login_obj = DatabaseModel.get_document(
+                user.objects, {"id": ObjectId(user_login_id)}
+            )
+            print(f"user_login_obj = {user_login_obj}")
 
-            # ---- Load user from DB ----
-            user_login_obj = DatabaseModel.get_document(user.objects, {"id": ObjectId(user_login_id)})
+            if user_login_obj is not None:
+                role = user_login_obj.role or ""
 
-            if not user_login_obj:
-                response.status_code = status.HTTP_401_UNAUTHORIZED
-                response.data['message'] = "Invalid token"
-                response.render()
-                return response
+                # Manage client_id
+                client_id = ""
+                if role != "superadmin" and getattr(user_login_obj, "client_id", None):
+                    client_id = str(user_login_obj.client_id.id)
+                _thread_locals.client_id = client_id
 
-            role = user_login_obj.role or ""
-            client_id = ""
-            if role != "superadmin" and getattr(user_login_obj, "client_id", None):
-                client_id = str(user_login_obj.client_id.id)
-            _thread_locals.client_id = client_id
+                # Check capability
+                if check_role_and_capability(request, role):
+                    res = self.get_response(request)
 
-            # ---- Check capability ----
-            if not check_role_and_capability(request, role):
-                response.status_code = status.HTTP_401_UNAUTHORIZED
-                response.data['message'] = "Unauthorized"
-                response.render()
-                return response
+                    if isinstance(res, Response):
+                        # ✅ DRF Response, merge cleaned data
+                        response.data["data"] = res.data
+                        if isinstance(res.data, dict) and res.data.get("STATUS_CODE") == 401:
+                            response.status_code = status.HTTP_401_UNAUTHORIZED
+                        # Finish the DRF response wrapper
+                        response.accepted_renderer = JSONRenderer()
+                        response.accepted_media_type = "application/json"
+                        response.renderer_context = {}
+                        response.render()
+                        return response
 
-            # ---- Call the actual view ----
-            res = self.get_response(request)
+                    elif isinstance(res, HttpResponseBase):
+                        # ✅ Regular Django HttpResponse (JsonResponse, error page, etc.)
+                        return res
 
-            # ---- Wrap DRF Response ----
-            if isinstance(res, Response):
-                response.data["data"] = res.data
-                if isinstance(res.data, dict) and res.data.get("STATUS_CODE") == 401:
+                    else:
+                        # ✅ Plain Python dict or data returned
+                        response.data["data"] = res
+                        if isinstance(res, dict) and res.get("STATUS_CODE") == 401:
+                            response.status_code = status.HTTP_401_UNAUTHORIZED
+                        response.accepted_renderer = JSONRenderer()
+                        response.accepted_media_type = "application/json"
+                        response.renderer_context = {}
+                        response.render()
+                        return response
+                else:
                     response.status_code = status.HTTP_401_UNAUTHORIZED
-                response.accepted_renderer = JSONRenderer()
-                response.accepted_media_type = "application/json"
-                response.renderer_context = {}
-                response.render()
-                return response
-
-            elif isinstance(res, HttpResponseBase):
-                return res
-
             else:
-                response.data["data"] = res
-                if isinstance(res, dict) and res.get("STATUS_CODE") == 401:
-                    response.status_code = status.HTTP_401_UNAUTHORIZED
-                response.accepted_renderer = JSONRenderer()
-                response.accepted_media_type = "application/json"
-                response.renderer_context = {}
-                response.render()
-                return response
+                response.status_code = status.HTTP_401_UNAUTHORIZED
+                response.data["message"] = "Invalid token"
 
         except Exception as e:
             print("Middleware Exception:", e)
             response.data["data"] = False
-            response.status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
+            if e.__class__.__name__ in ["ExpiredSignatureError", "DecodeError"]:
+                response.status_code = status.HTTP_401_UNAUTHORIZED
+                response.data["message"] = "Invalid token"
+            else:
+                response.status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
+
+        # ✅ Default: render & return DRF Response
+        if isinstance(response, Response):
+            response.accepted_renderer = JSONRenderer()
+            response.accepted_media_type = "application/json"
+            response.renderer_context = {}
             response.render()
-            return response
+        return response
 
 def createCookies(token, response):
     # Fix SIMPLE_JWT if it's a string (same as in loginUser)
