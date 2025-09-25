@@ -36,11 +36,8 @@ connect(
 
 ALLOWED_HOSTS = ["*"]
 
-CORS_ALLOW_ALL_ORIGINS = True
-CORS_ORIGIN_ALLOW_ALL = False
 CORS_ALLOW_CREDENTIALS = True
 # CSRF_COOKIE_SECURE = True
-CORS_ORIGIN_WHITELIST = ['*']
 
 # settings.py
 CORS_ALLOW_HEADERS = [
@@ -140,7 +137,6 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'PIM.wsgi.application'
 
-CORS_ALLOW_ALL_ORIGINS = True
 
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
@@ -148,7 +144,6 @@ CORS_ALLOWED_ORIGINS = [
 ]
 
 
-CORS_ALLOW_CREDENTIALS = True
 
 CSRF_TRUSTED_ORIGINS = [
     "http://localhost:3000",
