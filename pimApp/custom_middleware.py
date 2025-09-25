@@ -21,8 +21,8 @@ if isinstance(SIMPLE_JWT, str):
         # Fallbacks - so you never crash, even if env is not set properly
         SIMPLE_JWT = {
             'SESSION_COOKIE_MAX_AGE': 86400,
-            'AUTH_COOKIE_SECURE': False,
-            'AUTH_COOKIE_SAMESITE': 'Lax',
+            'AUTH_COOKIE_SECURE': True,
+            'AUTH_COOKIE_SAMESITE': 'None',
             'SESSION_COOKIE_DOMAIN': None,
             'ACCESS_TOKEN_LIFETIME': 86400,
             'SIGNING_KEY': 'fallback-secret-key',
