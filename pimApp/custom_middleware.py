@@ -4,7 +4,7 @@ from .global_service import DatabaseModel
 from .models import ignore_calls,capability,user
 import os
 from bson import ObjectId
-SIMPLE_JWT=os.getenv('SIMPLE_JWT')
+# SIMPLE_JWT=os.getenv('SIMPLE_JWT')
 from django.http.response import HttpResponseBase
 import jwt # type: ignore
 from rest_framework import status # type: ignore
@@ -12,22 +12,18 @@ from rest_framework.renderers import JSONRenderer # type: ignore
 
 import json
 
-# Parse SIMPLE_JWT string from env into Python dict
-if isinstance(SIMPLE_JWT, str):
-    try:
-        SIMPLE_JWT = json.loads(SIMPLE_JWT)
-    except json.JSONDecodeError as e:
-        print(f"Failed to parse SIMPLE_JWT env var: {e}")
-        # Fallbacks - so you never crash, even if env is not set properly
-        SIMPLE_JWT = {
-            'SESSION_COOKIE_MAX_AGE': 86400,
-            'AUTH_COOKIE_SECURE': True,
-            'AUTH_COOKIE_SAMESITE': 'None',
-            'SESSION_COOKIE_DOMAIN': None,
-            'ACCESS_TOKEN_LIFETIME': 86400,
-            'SIGNING_KEY': 'fallback-secret-key',
-            'ALGORITHM': 'HS256'
-        }
+
+JWT_SIGNING_KEY = os.getenv("JWT_SIGNING_KEY", "fallback-secret-key")
+
+SIMPLE_JWT = {
+    "SESSION_COOKIE_MAX_AGE": 86400,
+    "AUTH_COOKIE_SECURE": True,
+    "AUTH_COOKIE_SAMESITE": "None",
+    "SESSION_COOKIE_DOMAIN": None,
+    "ACCESS_TOKEN_LIFETIME": 86400,
+    "SIGNING_KEY": JWT_SIGNING_KEY,
+    "ALGORITHM": "HS256",
+}
 
 def check_ignore_authentication_for_url(request):
     path = request.path.split("/")
@@ -107,6 +103,7 @@ def createJsonResponse(request, token=None):
 
 def check_authentication(request):
     token=""
+    print("DEBUG cookies:", request.COOKIES)
     c1=request.COOKIES.get('_c1')
     c2=request.COOKIES.get('_c2')
     if(c1 and c2):    token = c1+"."+c2
