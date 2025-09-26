@@ -2,10 +2,14 @@ import redis # type: ignore
 import pickle
 from django.db import models # type: ignore
 from mongoengine.queryset import QuerySet   # type: ignore
-
+import os
 
 class DatabaseModel:
-    redis_client = redis.StrictRedis(host='localhost', port=6379, db=0, decode_responses=False,password="foobaredUniqnex")
+    redis_url = os.getenv('REDIS_URL', 'redis://localhost:6379')
+    if redis_url.startswith('redis://'):
+        redis_client = redis.StrictRedis(redis_url, decode_responses=False, ssl_cert_reqs=None)
+    else:
+        redis_client = redis.StrictRedis(host='localhost', port=6379, db=0, decode_responses=False, password="foobaredUniqnex")
     @staticmethod
     def get_document(queryset, filter={}, field_list=[]):
         try:
