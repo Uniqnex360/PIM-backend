@@ -53,11 +53,7 @@ def skip_for_paths():
                 print(request.META.keys())
                 _thread_locals.user_login_id = user_login_id
                 print(">>>>>>>>>>>>>>>>>>>>")
-                if hasattr(user.objects, 'get'):  # Django ORM
-                    user_login_obj = user.objects.get(pk=user_login_id)
-                else:
-                    user_login_obj = user.objects.filter(id=ObjectId(user_login_id)).first()
-                print(f"🚀 Direct query SUCCESS: {user_login_obj is not None}")
+                user_login_obj = DatabaseModel.get_document(user.objects,{'id':ObjectId(user_login_id)})
                 print('user',user_login_id)
                 if user_login_obj :
                     print(user_login_obj,id)
@@ -169,86 +165,42 @@ class CustomMiddleware:
 
     @skip_for_paths()
     def __call__(self, request):
-        # ALWAYS print these - they will show in Render logs
-        print("="*50)
-        print(f"🚀 MIDDLEWARE DEBUG - Path: {request.path}")
-        print(f"🚀 MIDDLEWARE DEBUG - Method: {request.method}")
-    
-    # Skip middleware for login and root
+        # Skip middleware for login and root
         if request.path in ["/api/loginUser/", "/"]:
-            print("🚀 SKIPPING middleware for login/root")
             return self.get_response(request)
 
-    # Print ALL HTTP headers
-        http_headers = {k: v for k, v in request.META.items() if k.startswith('HTTP_')}
-        print(f"🚀 HTTP Headers: {http_headers}")
-    
-    # Check specifically for user login header
-        user_login_id = request.META.get("HTTP_USER_LOGIN_ID")
-        print(f"🚀 USER_LOGIN_ID from header: '{user_login_id}'")
-    
-    # Check cookies
-        cookies = request.COOKIES
-        print(f"🚀 Cookies: {cookies}")
-    
-    # Start with a DRF-style wrapper
+        # Start with a DRF-style wrapper
         response = createJsonResponse(request)
 
         try:
+            user_login_id = request.META.get("HTTP_USER_LOGIN_ID")
             _thread_locals.user_login_id = user_login_id
-            print(f"🚀 Set thread local user_login_id: {user_login_id}")
 
-        # Check if user_login_id is None or empty
-            if not user_login_id:
-                print("❌ ERROR: user_login_id is None or empty!")
-                print("❌ This means the HTTP_USER_LOGIN_ID header is missing")
-                response.status_code = status.HTTP_401_UNAUTHORIZED
-                response.data["message"] = "Invalid token - missing user header"
-                print("❌ Returning 401 - Missing Header")
-                return response
-
-        # Attempt to load the user
-            print(f"🚀 Looking for user with ObjectId: {user_login_id}")
-            try:
-                object_id = ObjectId(user_login_id)
-                print(f"🚀 Created ObjectId successfully: {object_id}")
-            except Exception as oid_error:
-                print(f"❌ ERROR creating ObjectId: {oid_error}")
-                response.status_code = status.HTTP_401_UNAUTHORIZED
-                response.data["message"] = "Invalid token - bad user ID format"
-                return response
-
+            # Attempt to load the user
             user_login_obj = DatabaseModel.get_document(
-            user.objects, {"id": ObjectId(user_login_id)}
-        )
-            print(f"🚀 DatabaseModel.get_document result: {user_login_obj}")
-            print(f"🚀 User found: {user_login_obj is not None}")
+                user.objects, {"id": ObjectId(user_login_id)}
+            )
+            print(f"user_login_obj = {user_login_obj}")
 
             if user_login_obj is not None:
                 role = user_login_obj.role or ""
-                print(f"🚀 User role: '{role}'")
 
-            # Manage client_id
+                # Manage client_id
                 client_id = ""
                 if role != "superadmin" and getattr(user_login_obj, "client_id", None):
                     client_id = str(user_login_obj.client_id.id)
                 _thread_locals.client_id = client_id
-                print(f"🚀 Client ID set: '{client_id}'")
 
-            # Check capability
-                print(f"🚀 Checking role and capability for role: '{role}'")
-                has_capability = check_role_and_capability(request, role)
-                print(f"🚀 Has capability: {has_capability}")
-
-                if has_capability:
-                    print("✅ User has capability - proceeding to main response")
+                # Check capability
+                if check_role_and_capability(request, role):
                     res = self.get_response(request)
 
                     if isinstance(res, Response):
-                        print("🚀 Got DRF Response")
+                        # ✅ DRF Response, merge cleaned data
                         response.data["data"] = res.data
                         if isinstance(res.data, dict) and res.data.get("STATUS_CODE") == 401:
                             response.status_code = status.HTTP_401_UNAUTHORIZED
+                        # Finish the DRF response wrapper
                         response.accepted_renderer = JSONRenderer()
                         response.accepted_media_type = "application/json"
                         response.renderer_context = {}
@@ -256,11 +208,11 @@ class CustomMiddleware:
                         return response
 
                     elif isinstance(res, HttpResponseBase):
-                        print("🚀 Got Django HttpResponse")
+                        # ✅ Regular Django HttpResponse (JsonResponse, error page, etc.)
                         return res
 
                     else:
-                        print("🚀 Got plain data response")
+                        # ✅ Plain Python dict or data returned
                         response.data["data"] = res
                         if isinstance(res, dict) and res.get("STATUS_CODE") == 401:
                             response.status_code = status.HTTP_401_UNAUTHORIZED
@@ -270,37 +222,26 @@ class CustomMiddleware:
                         response.render()
                         return response
                 else:
-                    print("❌ ERROR: User does not have capability for this action")
                     response.status_code = status.HTTP_401_UNAUTHORIZED
-                    response.data["message"] = "Invalid token - no capability"
             else:
-                print("❌ ERROR: user_login_obj is None - user not found in database")
                 response.status_code = status.HTTP_401_UNAUTHORIZED
-                response.data["message"] = "Invalid token - user not found"
+                response.data["message"] = "Invalid token"
 
         except Exception as e:
-            print(f"❌ EXCEPTION in middleware: {e}")
-            print(f"❌ Exception type: {e.__class__.__name__}")
-            import traceback
-            print(f"❌ Traceback: {traceback.format_exc()}")
-        
+            print("Middleware Exception:", e)
             response.data["data"] = False
             if e.__class__.__name__ in ["ExpiredSignatureError", "DecodeError"]:
                 response.status_code = status.HTTP_401_UNAUTHORIZED
-                response.data["message"] = "Invalid token - JWT error"
+                response.data["message"] = "Invalid token"
             else:
                 response.status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
-                response.data["message"] = "Internal server error"
 
-    # Default: render & return DRF Response
-        print(f"🚀 Final response status: {response.status_code}")
+        # ✅ Default: render & return DRF Response
         if isinstance(response, Response):
             response.accepted_renderer = JSONRenderer()
             response.accepted_media_type = "application/json"
             response.renderer_context = {}
             response.render()
-    
-        print("="*50)
         return response
 
 def createCookies(token, response):
