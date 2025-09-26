@@ -11,7 +11,8 @@ from rest_framework import status # type: ignore
 from rest_framework.renderers import JSONRenderer # type: ignore
 
 import json
-
+import logging
+logger = logging.getLogger(__name__)
 # Parse SIMPLE_JWT string from env into Python dict
 if isinstance(SIMPLE_JWT, str):
     try:
@@ -174,13 +175,21 @@ class CustomMiddleware:
 
         try:
             user_login_id = request.META.get("HTTP_USER_LOGIN_ID")
+            logger.info(f"🔍 Debug - user_login_id: {user_login_id}")
+            logger.info(f"🔍 Debug - All META headers: {[k for k in request.META.keys() if k.startswith('HTTP_')]}")
             _thread_locals.user_login_id = user_login_id
+            if not user_login_id:
+                logger.error("❌ user_login_id is None - header missing")
+                response = createJsonResponse(request)
+                response.status_code = status.HTTP_401_UNAUTHORIZED
+                response.data["message"] = "User login ID header missing"
+                return response
 
             # Attempt to load the user
             user_login_obj = DatabaseModel.get_document(
                 user.objects, {"id": ObjectId(user_login_id)}
             )
-            print(f"user_login_obj = {user_login_obj}")
+            logger.info(f"🔍 Debug - Found user: {user_login_obj is not None}")
 
             if user_login_obj is not None:
                 role = user_login_obj.role or ""
