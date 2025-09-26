@@ -53,7 +53,11 @@ def skip_for_paths():
                 print(request.META.keys())
                 _thread_locals.user_login_id = user_login_id
                 print(">>>>>>>>>>>>>>>>>>>>")
-                user_login_obj = DatabaseModel.get_document(user.objects,{'id':ObjectId(user_login_id)})
+                if hasattr(user.objects, 'get'):  # Django ORM
+                    user_login_obj = user.objects.get(pk=user_login_id)
+                else:
+                    user_login_obj = user.objects.filter(id=ObjectId(user_login_id)).first()
+                print(f"🚀 Direct query SUCCESS: {user_login_obj is not None}")
                 print('user',user_login_id)
                 if user_login_obj :
                     print(user_login_obj,id)
