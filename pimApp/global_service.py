@@ -7,7 +7,7 @@ import os
 class DatabaseModel:
     redis_url = os.getenv('REDIS_URL', 'redis://localhost:6379')
     if redis_url.startswith(('redis://', 'rediss://')):
-        redis_client = redis.StrictRedis(redis_url, decode_responses=False, ssl_cert_reqs=None)
+        redis_client = redis.StrictRedis.from_url(redis_url, decode_responses=False, ssl_cert_reqs=None)
     else:
         redis_client = redis.StrictRedis(host='localhost', port=6379, db=0, decode_responses=False, password="foobaredUniqnex")
     @staticmethod
