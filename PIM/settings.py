@@ -49,6 +49,7 @@ CORS_ALLOW_CREDENTIALS = True
 # settings.py
 CORS_ALLOW_HEADERS = [
     'user-login-id',
+    'User-Login-Id',
     'content-type',
 ]
 # CORS_ALLOW_HEADERS = ["*"]  
