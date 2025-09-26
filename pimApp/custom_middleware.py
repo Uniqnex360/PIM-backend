@@ -11,6 +11,7 @@ from rest_framework import status # type: ignore
 from rest_framework.renderers import JSONRenderer # type: ignore
 
 import json
+print("🔥🔥🔥 CUSTOM MIDDLEWARE FILE LOADED IN PRODUCTION 🔥🔥🔥", flush=True)
 
 # Parse SIMPLE_JWT string from env into Python dict
 if isinstance(SIMPLE_JWT, str):
@@ -165,6 +166,7 @@ class CustomMiddleware:
 
     @skip_for_paths()
     def __call__(self, request):
+        print(f"🔥 MIDDLEWARE CALLED: {request.path}", flush=True)
         # ALWAYS print these - they will show in Render logs
         print("="*50)
         print(f"🚀 MIDDLEWARE DEBUG - Path: {request.path}")
